@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV/XLS to JSON/PHP/Python Converter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+        }
+
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .upload-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            border: 2px dashed #dee2e6;
+            transition: all 0.3s ease;
+        }
+
+        .upload-section:hover {
+            border-color: #667eea;
+            background: #f0f0ff;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .file-input {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-input-button {
+            display: inline-block;
+            padding: 12px 24px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-align: center;
+            width: 100%;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .file-input-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .file-info {
+            margin-top: 15px;
+            padding: 10px;
+            background: #e9ecef;
+            border-radius: 5px;
+            font-weight: 500;
+        }
+
+        .columns-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            display: none;
+        }
+
+        .columns-section h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.4em;
+        }
+
+        .columns-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .column-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+            transition: all 0.3s ease;
+        }
+
+        .column-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+        }
+
+        .column-item input[type="checkbox"] {
+            margin-right: 10px;
+            transform: scale(1.2);
+            accent-color: #667eea;
+        }
+
+        .column-item label {
+            cursor: pointer;
+            flex: 1;
+            font-weight: 500;
+        }
+
+        .key-rename-input {
+            margin-left: 10px;
+            padding: 5px 8px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            font-size: 12px;
+            width: 120px;
+            transition: border-color 0.3s ease;
+        }
+
+        .key-rename-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+        }
+
+        .output-format-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #dee2e6;
+        }
+
+        .output-format-section h4 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+
+        .format-toggle {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .format-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 15px;
+            background: white;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .format-option:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+        }
+
+        .format-option.active {
+            border-color: #667eea;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .format-option input[type="radio"] {
+            margin: 0;
+            transform: scale(1.2);
+        }
+
+        .format-option.active input[type="radio"] {
+            accent-color: white;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            flex: 1;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-1px);
+        }
+
+        .output-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .output-section h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.4em;
+        }
+
+        .json-output {
+            background: #2d3748;
+            color: #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            border: 1px solid #4a5568;
+        }
+
+        .key-rename-input:disabled {
+            background-color: #f8f9fa;
+            color: #6c757d;
+        }
+
+        .download-btn {
+            margin-top: 15px;
+            background: linear-gradient(45deg, #dc3545, #fd7e14);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+            margin-right: 10px;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            padding: 15px;
+            background: #e9ecef;
+            border-radius: 8px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            color: #6c757d;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>📊 CSV/XLS to JSON/PHP/Python Converter</h1>
+
+        <div class="upload-section">
+            <div class="file-input-wrapper">
+                <input type="file" id="fileInput" class="file-input" accept=".csv,.xlsx,.xls" />
+                <label for="fileInput" class="file-input-button">
+                    📁 Choose CSV or Excel File
+                </label>
+            </div>
+            <div id="fileInfo" class="file-info" style="display: none;"></div>
+        </div>
+
+        <div id="columnsSection" class="columns-section">
+            <h3>Select Columns and Customize JSON Keys</h3>
+            <p style="color: #6c757d; margin-bottom: 20px;">
+                ✅ Check columns to include • ✏️ Enter custom key names for JSON output (leave blank to use original
+                names)
+            </p>
+            <div class="stats">
+                <div class="stat-item">
+                    <div id="totalRows" class="stat-number">0</div>
+                    <div class="stat-label">Total Rows</div>
+                </div>
+                <div class="stat-item">
+                    <div id="totalColumns" class="stat-number">0</div>
+                    <div class="stat-label">Total Columns</div>
+                </div>
+                <div class="stat-item">
+                    <div id="selectedColumns" class="stat-number">0</div>
+                    <div class="stat-label">Selected Columns</div>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button class="btn btn-secondary" onclick="selectAll()">Select All</button>
+                <button class="btn btn-secondary" onclick="deselectAll()">Deselect All</button>
+                <button class="btn btn-secondary" onclick="resetKeyNames()">Reset Key Names</button>
+                <button class="btn btn-primary" onclick="convertData()">Convert Data</button>
+            </div>
+
+            <div class="output-format-section">
+                <h4>Output Format</h4>
+                <div class="format-toggle">
+                    <label class="format-option active" for="formatJSON">
+                        <input type="radio" id="formatJSON" name="outputFormat" value="json" checked
+                            onchange="toggleOutputFormat()">
+                        <span>🔧 JSON</span>
+                    </label>
+                    <label class="format-option" for="formatPHP">
+                        <input type="radio" id="formatPHP" name="outputFormat" value="php"
+                            onchange="toggleOutputFormat()">
+                        <span>🐘 PHP Array</span>
+                    </label>
+                    <label class="format-option" for="formatPython">
+                        <input type="radio" id="formatPython" name="outputFormat" value="python"
+                            onchange="toggleOutputFormat()">
+                        <span>🐍 Python List</span>
+                    </label>
+                </div>
+            </div>
+
+            <div id="columnsGrid" class="columns-grid"></div>
+        </div>
+
+        <div id="outputSection" class="output-section">
+            <h3 id="outputTitle">JSON Output</h3>
+            <div id="outputData" class="json-output"></div>
+            <button class="download-btn" onclick="downloadFile()">💾 Download File</button>
+            <button class="btn btn-secondary" onclick="copyToClipboard()" style="margin-top: 15px;">📋 Copy to
+                Clipboard</button>
+        </div>
+    </div>
+
+    <script>
+        let rawData = [];
+        let headers = [];
+        let currentFilename = '';
+        let outputData = '';
+        let currentFormat = 'json';
+
+        document.getElementById('fileInput').addEventListener('change', handleFile);
+
+        function handleFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            currentFilename = file.name.replace(/\.[^/.]+$/, "");
+            const fileExtension = file.name.split('.').pop().toLowerCase();
+
+            document.getElementById('fileInfo').style.display = 'block';
+            document.getElementById('fileInfo').innerHTML = `
+                <strong>File:</strong> ${file.name}<br>
+                <strong>Size:</strong> ${(file.size / 1024).toFixed(2)} KB<br>
+                <strong>Type:</strong> ${fileExtension.toUpperCase()}
+            `;
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                if (fileExtension === 'csv') {
+                    parseCSV(e.target.result);
+                } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+                    parseExcel(e.target.result);
+                }
+            };
+
+            if (fileExtension === 'csv') {
+                reader.readAsText(file);
+            } else {
+                reader.readAsArrayBuffer(file);
+            }
+        }
+
+        function parseCSV(csvText) {
+            Papa.parse(csvText, {
+                header: true,
+                skipEmptyLines: true,
+                dynamicTyping: true,
+                complete: function (results) {
+                    rawData = results.data;
+                    headers = results.meta.fields || [];
+                    displayColumns();
+                },
+                error: function (error) {
+                    alert('Error parsing CSV: ' + error.message);
+                }
+            });
+        }
+
+        function parseExcel(arrayBuffer) {
+            try {
+                const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                if (jsonData.length > 0) {
+                    headers = jsonData[0].map(header => header?.toString().trim() || '');
+                    rawData = jsonData.slice(1).map(row => {
+                        const obj = {};
+                        headers.forEach((header, index) => {
+                            obj[header] = row[index] !== undefined ? row[index] : '';
+                        });
+                        return obj;
+                    });
+                    displayColumns();
+                }
+            } catch (error) {
+                alert('Error parsing Excel file: ' + error.message);
+            }
+        }
+
+        function displayColumns() {
+            const columnsSection = document.getElementById('columnsSection');
+            const columnsGrid = document.getElementById('columnsGrid');
+
+            // Update stats
+            document.getElementById('totalRows').textContent = rawData.length;
+            document.getElementById('totalColumns').textContent = headers.length;
+            document.getElementById('selectedColumns').textContent = headers.length;
+
+            columnsGrid.innerHTML = '';
+
+            headers.forEach((header, index) => {
+                const columnItem = document.createElement('div');
+                columnItem.className = 'column-item';
+                columnItem.innerHTML = `
+                    <input type="checkbox" id="col_${index}" checked onchange="updateSelectedCount(); toggleKeyInput(${index})">
+                    <label for="col_${index}">${header}</label>
+                    <input type="text" 
+                           id="key_${index}" 
+                           class="key-rename-input" 
+                           placeholder="Custom key name"
+                           title="Enter custom JSON key name (optional)"
+                           onchange="validateKeyName(${index})">
+                `;
+                columnsGrid.appendChild(columnItem);
+            });
+
+            columnsSection.style.display = 'block';
+        }
+
+        function updateSelectedCount() {
+            const checkedBoxes = document.querySelectorAll('#columnsGrid input[type="checkbox"]:checked');
+            document.getElementById('selectedColumns').textContent = checkedBoxes.length;
+        }
+
+        function toggleKeyInput(index) {
+            const checkbox = document.getElementById(`col_${index}`);
+            const keyInput = document.getElementById(`key_${index}`);
+            keyInput.disabled = !checkbox.checked;
+            if (!checkbox.checked) {
+                keyInput.value = '';
+            }
+        }
+
+        function validateKeyName(index) {
+            const keyInput = document.getElementById(`key_${index}`);
+            const value = keyInput.value.trim();
+
+            // Check for invalid characters in JSON key names
+            if (value && !/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(value)) {
+                keyInput.style.borderColor = '#dc3545';
+                keyInput.title = 'Invalid key name. Use letters, numbers, underscore, or $ only. Must start with letter, underscore, or $.';
+            } else {
+                keyInput.style.borderColor = '#dee2e6';
+                keyInput.title = 'Enter custom JSON key name (optional)';
+            }
+        }
+
+        function selectAll() {
+            const checkboxes = document.querySelectorAll('#columnsGrid input[type="checkbox"]');
+            checkboxes.forEach((cb, index) => {
+                cb.checked = true;
+                toggleKeyInput(index);
+            });
+            updateSelectedCount();
+        }
+
+        function deselectAll() {
+            const checkboxes = document.querySelectorAll('#columnsGrid input[type="checkbox"]');
+            checkboxes.forEach((cb, index) => {
+                cb.checked = false;
+                toggleKeyInput(index);
+            });
+            updateSelectedCount();
+        }
+
+        function resetKeyNames() {
+            const keyInputs = document.querySelectorAll('#columnsGrid input[type="text"]');
+            keyInputs.forEach(input => {
+                input.value = '';
+                input.style.borderColor = '#dee2e6';
+                input.title = 'Enter custom JSON key name (optional)';
+            });
+        }
+
+        function toggleOutputFormat() {
+            const formatOptions = document.querySelectorAll('.format-option');
+            formatOptions.forEach(option => {
+                const radio = option.querySelector('input[type="radio"]');
+                if (radio.checked) {
+                    option.classList.add('active');
+                    currentFormat = radio.value;
+                } else {
+                    option.classList.remove('active');
+                }
+            });
+
+            // Update output title and re-convert if data exists
+            const outputTitle = document.getElementById('outputTitle');
+            if (currentFormat === 'json') {
+                outputTitle.textContent = 'JSON Output';
+            } else if (currentFormat === 'php') {
+                outputTitle.textContent = 'PHP Array Output';
+            } else {
+                outputTitle.textContent = 'Python List Output';
+            }
+
+            // Re-convert existing data if available
+            if (rawData.length > 0 && document.getElementById('outputSection').style.display === 'block') {
+                convertData();
+            }
+        }
+
+        function convertData() {
+            const checkedBoxes = document.querySelectorAll('#columnsGrid input[type="checkbox"]:checked');
+
+            if (checkedBoxes.length === 0) {
+                alert('Please select at least one column to include in the output.');
+                return;
+            }
+
+            // Build mapping of original headers to custom key names
+            const headerMapping = {};
+            const selectedHeaders = [];
+            const customKeys = [];
+
+            checkedBoxes.forEach(cb => {
+                const index = parseInt(cb.id.split('_')[1]);
+                const originalHeader = headers[index];
+                const keyInput = document.getElementById(`key_${index}`);
+                const customKey = keyInput.value.trim() || originalHeader;
+
+                // Validate custom key name
+                if (customKey !== originalHeader && !/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(customKey)) {
+                    alert(`Invalid custom key name: "${customKey}". Please use valid identifier names.`);
+                    keyInput.focus();
+                    return;
+                }
+
+                selectedHeaders.push(originalHeader);
+                customKeys.push(customKey);
+                headerMapping[originalHeader] = customKey;
+            });
+
+            // Check for duplicate custom key names
+            const uniqueKeys = new Set(customKeys);
+            if (uniqueKeys.size !== customKeys.length) {
+                alert('Duplicate custom key names detected. Please ensure all key names are unique.');
+                return;
+            }
+
+            // Create filtered data with custom key names
+            const filteredData = rawData.map(row => {
+                const filteredRow = {};
+                selectedHeaders.forEach(originalHeader => {
+                    const customKey = headerMapping[originalHeader];
+                    filteredRow[customKey] = row[originalHeader];
+                });
+                return filteredRow;
+            });
+
+            // Convert to appropriate format
+            if (currentFormat === 'json') {
+                outputData = JSON.stringify(filteredData, null, 2);
+            } else if (currentFormat === 'php') {
+                outputData = convertToPHPArray(filteredData);
+            } else {
+                outputData = convertToPythonList(filteredData);
+            }
+
+            document.getElementById('outputData').textContent = outputData;
+            document.getElementById('outputSection').style.display = 'block';
+
+            // Smooth scroll to output
+            document.getElementById('outputSection').scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }
+
+        function convertToPHPArray(data) {
+            function phpValue(value) {
+                if (value === null || value === undefined) {
+                    return 'null';
+                }
+                if (typeof value === 'string') {
+                    return `'${value.replace(/'/g, "\\'").replace(/\\/g, '\\\\')}'`;
+                }
+                if (typeof value === 'number') {
+                    return value.toString();
+                }
+                if (typeof value === 'boolean') {
+                    return value ? 'true' : 'false';
+                }
+                if (Array.isArray(value)) {
+                    return '[' + value.map(phpValue).join(', ') + ']';
+                }
+                if (typeof value === 'object') {
+                    const pairs = Object.entries(value).map(([k, v]) => `    '${k}' => ${phpValue(v)}`);
+                    return '[\n' + pairs.join(',\n') + '\n]';
+                }
+                return `'${String(value)}'`;
+            }
+
+            const phpArrayItems = data.map(row => {
+                const pairs = Object.entries(row).map(([key, value]) => `        '${key}' => ${phpValue(value)}`);
+                return '    [\n' + pairs.join(',\n') + '\n    ]';
+            });
+
+            return '<?php\n\n$data = [\n' + phpArrayItems.join(',\n') + '\n];\n\n?>';
+        }
+
+        function convertToPythonList(data) {
+            function pythonValue(value) {
+                if (value === null || value === undefined) {
+                    return 'None';
+                }
+                if (typeof value === 'string') {
+                    // Handle string escaping for Python
+                    const escaped = value
+                        .replace(/\\/g, '\\\\')
+                        .replace(/'/g, "\\'")
+                        .replace(/"/g, '\\"')
+                        .replace(/\n/g, '\\n')
+                        .replace(/\r/g, '\\r')
+                        .replace(/\t/g, '\\t');
+                    return `'${escaped}'`;
+                }
+                if (typeof value === 'number') {
+                    return value.toString();
+                }
+                if (typeof value === 'boolean') {
+                    return value ? 'True' : 'False';
+                }
+                if (Array.isArray(value)) {
+                    return '[' + value.map(pythonValue).join(', ') + ']';
+                }
+                if (typeof value === 'object') {
+                    const pairs = Object.entries(value).map(([k, v]) => `    '${k}': ${pythonValue(v)}`);
+                    return '{\n' + pairs.join(',\n') + '\n}';
+                }
+                return `'${String(value)}'`;
+            }
+
+            const pythonListItems = data.map(row => {
+                const pairs = Object.entries(row).map(([key, value]) => `        '${key}': ${pythonValue(value)}`);
+                return '    {\n' + pairs.join(',\n') + '\n    }';
+            });
+
+            return `# Python data structure\n# You can use this directly in your Python code\n\ndata = [\n${pythonListItems.join(',\n')}\n]\n\n# Example usage:\n# for item in data:\n#     print(item)\n#     for key, value in item.items():\n#         print(f"{key}: {value}")`;
+        }
+
+
+        function downloadFile() {
+            if (!outputData) {
+                alert('No data to download. Please convert your data first.');
+                return;
+            }
+
+            const extension = currentFormat === 'json' ? 'json' : 'php';
+            const mimeType = currentFormat === 'json' ? 'application/json' : 'application/x-httpd-php';
+
+            const blob = new Blob([outputData], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${currentFilename || 'converted_data'}.${extension}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function copyToClipboard() {
+            if (!outputData) {
+                alert('No data to copy. Please convert your data first.');
+                return;
+            }
+
+            navigator.clipboard.writeText(outputData).then(() => {
+                // Visual feedback
+                const button = event.target;
+                const originalText = button.textContent;
+                button.textContent = '✅ Copied!';
+                button.style.background = '#28a745';
+
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.background = '';
+                }, 2000);
+            }).catch(err => {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = outputData;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+
+                alert('Data copied to clipboard!');
+            });
+        }
+    </script>
+</body>
+
+</html>
