@@ -344,6 +344,17 @@
                 ✅ Check columns to include • ✏️ Enter custom key names for JSON output (leave blank to use original
                 names)
             </p>
+
+            <div class="output-format-section" style="padding: 15px; margin-bottom: 20px; border-width: 2px;">
+                <h4 style="margin-top: 0; margin-bottom: 10px;">Processing Options</h4>
+                <div class="format-toggle">
+                    <label class="column-item" for="excludeEmptyRows" style="padding: 8px; border-radius: 5px;">
+                        <input type="checkbox" id="excludeEmptyRows" checked onchange="handleEmptyRowToggle()">
+                        <span style="font-weight: normal;">Exclude rows where all values are empty</span>
+                    </label>
+                </div>
+            </div>
+
             <div class="stats">
                 <div class="stat-item">
                     <div id="totalRows" class="stat-number">0</div>
@@ -394,7 +405,7 @@
             <h3 id="outputTitle">JSON Output</h3>
             <div id="outputData" class="json-output"></div>
             <button class="download-btn" onclick="downloadFile()">💾 Download File</button>
-            <button class="btn btn-secondary" onclick="copyToClipboard()" style="margin-top: 15px;">📋 Copy to
+            <button class="btn btn-secondary" onclick="copyToClipboard(event)" style="margin-top: 15px;">📋 Copy to
                 Clipboard</button>
         </div>
     </div>
@@ -421,6 +432,8 @@
                 <strong>Size:</strong> ${(file.size / 1024).toFixed(2)} KB<br>
                 <strong>Type:</strong> ${fileExtension.toUpperCase()}
             `;
+            // Hide previous output when a new file is loaded
+            document.getElementById('outputSection').style.display = 'none';
 
             const reader = new FileReader();
             reader.onload = function (e) {
@@ -459,7 +472,8 @@
                 const workbook = XLSX.read(arrayBuffer, { type: 'array' });
                 const firstSheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[firstSheetName];
-                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                // Added defval to ensure empty cells are parsed as empty strings
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
 
                 if (jsonData.length > 0) {
                     headers = jsonData[0].map(header => header?.toString().trim() || '');
@@ -477,12 +491,36 @@
             }
         }
 
+        // New function to get data, applying the "exclude empty" filter if checked
+        function getProcessedData() {
+            const shouldExclude = document.getElementById('excludeEmptyRows')?.checked;
+            if (shouldExclude && rawData.length > 0) {
+                return rawData.filter(row =>
+                    // Keep row if at least one of its values is not empty
+                    Object.values(row).some(val => val !== null && val !== '' && val !== undefined)
+                );
+            }
+            return rawData;
+        }
+
+        // New function to handle toggling the "exclude empty" checkbox
+        function handleEmptyRowToggle() {
+            const processedData = getProcessedData();
+            document.getElementById('totalRows').textContent = processedData.length;
+
+            // If output is already visible, refresh it instantly
+            if (document.getElementById('outputSection').style.display === 'block') {
+                convertData();
+            }
+        }
+
         function displayColumns() {
             const columnsSection = document.getElementById('columnsSection');
             const columnsGrid = document.getElementById('columnsGrid');
+            const processedData = getProcessedData(); // Use processed data for initial count
 
             // Update stats
-            document.getElementById('totalRows').textContent = rawData.length;
+            document.getElementById('totalRows').textContent = processedData.length;
             document.getElementById('totalColumns').textContent = headers.length;
             document.getElementById('selectedColumns').textContent = headers.length;
 
@@ -525,7 +563,6 @@
             const keyInput = document.getElementById(`key_${index}`);
             const value = keyInput.value.trim();
 
-            // Check for invalid characters in JSON key names
             if (value && !/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(value)) {
                 keyInput.style.borderColor = '#dc3545';
                 keyInput.title = 'Invalid key name. Use letters, numbers, underscore, or $ only. Must start with letter, underscore, or $.';
@@ -574,7 +611,6 @@
                 }
             });
 
-            // Update output title and re-convert if data exists
             const outputTitle = document.getElementById('outputTitle');
             if (currentFormat === 'json') {
                 outputTitle.textContent = 'JSON Output';
@@ -584,7 +620,6 @@
                 outputTitle.textContent = 'Python List Output';
             }
 
-            // Re-convert existing data if available
             if (rawData.length > 0 && document.getElementById('outputSection').style.display === 'block') {
                 convertData();
             }
@@ -592,28 +627,32 @@
 
         function convertData() {
             const checkedBoxes = document.querySelectorAll('#columnsGrid input[type="checkbox"]:checked');
-
             if (checkedBoxes.length === 0) {
                 alert('Please select at least one column to include in the output.');
                 return;
             }
 
-            // Build mapping of original headers to custom key names
+            // Use the processed data for conversion
+            const dataToConvert = getProcessedData();
+            // Update the displayed row count to match the filtered data
+            document.getElementById('totalRows').textContent = dataToConvert.length;
+
             const headerMapping = {};
             const selectedHeaders = [];
             const customKeys = [];
+            let hasInvalidKey = false;
 
             checkedBoxes.forEach(cb => {
+                if (hasInvalidKey) return;
                 const index = parseInt(cb.id.split('_')[1]);
                 const originalHeader = headers[index];
                 const keyInput = document.getElementById(`key_${index}`);
                 const customKey = keyInput.value.trim() || originalHeader;
 
-                // Validate custom key name
                 if (customKey !== originalHeader && !/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(customKey)) {
                     alert(`Invalid custom key name: "${customKey}". Please use valid identifier names.`);
                     keyInput.focus();
-                    return;
+                    hasInvalidKey = true;
                 }
 
                 selectedHeaders.push(originalHeader);
@@ -621,15 +660,15 @@
                 headerMapping[originalHeader] = customKey;
             });
 
-            // Check for duplicate custom key names
+            if (hasInvalidKey) return;
+
             const uniqueKeys = new Set(customKeys);
             if (uniqueKeys.size !== customKeys.length) {
                 alert('Duplicate custom key names detected. Please ensure all key names are unique.');
                 return;
             }
 
-            // Create filtered data with custom key names
-            const filteredData = rawData.map(row => {
+            const filteredData = dataToConvert.map(row => {
                 const filteredRow = {};
                 selectedHeaders.forEach(originalHeader => {
                     const customKey = headerMapping[originalHeader];
@@ -638,7 +677,6 @@
                 return filteredRow;
             });
 
-            // Convert to appropriate format
             if (currentFormat === 'json') {
                 outputData = JSON.stringify(filteredData, null, 2);
             } else if (currentFormat === 'php') {
@@ -650,7 +688,6 @@
             document.getElementById('outputData').textContent = outputData;
             document.getElementById('outputSection').style.display = 'block';
 
-            // Smooth scroll to output
             document.getElementById('outputSection').scrollIntoView({
                 behavior: 'smooth',
                 block: 'start'
@@ -659,76 +696,46 @@
 
         function convertToPHPArray(data) {
             function phpValue(value) {
-                if (value === null || value === undefined) {
-                    return 'null';
-                }
-                if (typeof value === 'string') {
-                    return `'${value.replace(/'/g, "\\'").replace(/\\/g, '\\\\')}'`;
-                }
-                if (typeof value === 'number') {
-                    return value.toString();
-                }
-                if (typeof value === 'boolean') {
-                    return value ? 'true' : 'false';
-                }
-                if (Array.isArray(value)) {
-                    return '[' + value.map(phpValue).join(', ') + ']';
-                }
+                if (value === null || value === undefined) return 'null';
+                if (typeof value === 'string') return `'${value.replace(/'/g, "\\'").replace(/\\/g, '\\\\')}'`;
+                if (typeof value === 'number') return value.toString();
+                if (typeof value === 'boolean') return value ? 'true' : 'false';
+                if (Array.isArray(value)) return '[' + value.map(phpValue).join(', ') + ']';
                 if (typeof value === 'object') {
-                    const pairs = Object.entries(value).map(([k, v]) => `    '${k}' => ${phpValue(v)}`);
+                    const pairs = Object.entries(value).map(([k, v]) => `       '${k}' => ${phpValue(v)}`);
                     return '[\n' + pairs.join(',\n') + '\n]';
                 }
                 return `'${String(value)}'`;
             }
-
             const phpArrayItems = data.map(row => {
-                const pairs = Object.entries(row).map(([key, value]) => `        '${key}' => ${phpValue(value)}`);
-                return '    [\n' + pairs.join(',\n') + '\n    ]';
+                const pairs = Object.entries(row).map(([key, value]) => `            '${key}' => ${phpValue(value)}`);
+                return '        [\n' + pairs.join(',\n') + '\n        ]';
             });
-
-            return '<?php\n\n$data = [\n' + phpArrayItems.join(',\n') + '\n];\n\n?>';
+            return `<?php\n\n$data = [\n${phpArrayItems.join(',\n')}\n];\n\n?>`;
         }
 
         function convertToPythonList(data) {
             function pythonValue(value) {
-                if (value === null || value === undefined) {
-                    return 'None';
-                }
+                if (value === null || value === undefined) return 'None';
                 if (typeof value === 'string') {
-                    // Handle string escaping for Python
-                    const escaped = value
-                        .replace(/\\/g, '\\\\')
-                        .replace(/'/g, "\\'")
-                        .replace(/"/g, '\\"')
-                        .replace(/\n/g, '\\n')
-                        .replace(/\r/g, '\\r')
-                        .replace(/\t/g, '\\t');
+                    const escaped = value.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
                     return `'${escaped}'`;
                 }
-                if (typeof value === 'number') {
-                    return value.toString();
-                }
-                if (typeof value === 'boolean') {
-                    return value ? 'True' : 'False';
-                }
-                if (Array.isArray(value)) {
-                    return '[' + value.map(pythonValue).join(', ') + ']';
-                }
+                if (typeof value === 'number') return value.toString();
+                if (typeof value === 'boolean') return value ? 'True' : 'False';
+                if (Array.isArray(value)) return '[' + value.map(pythonValue).join(', ') + ']';
                 if (typeof value === 'object') {
-                    const pairs = Object.entries(value).map(([k, v]) => `    '${k}': ${pythonValue(v)}`);
+                    const pairs = Object.entries(value).map(([k, v]) => `        '${k}': ${pythonValue(v)}`);
                     return '{\n' + pairs.join(',\n') + '\n}';
                 }
                 return `'${String(value)}'`;
             }
-
             const pythonListItems = data.map(row => {
                 const pairs = Object.entries(row).map(([key, value]) => `        '${key}': ${pythonValue(value)}`);
                 return '    {\n' + pairs.join(',\n') + '\n    }';
             });
-
-            return `# Python data structure\n# You can use this directly in your Python code\n\ndata = [\n${pythonListItems.join(',\n')}\n]\n\n# Example usage:\n# for item in data:\n#     print(item)\n#     for key, value in item.items():\n#         print(f"{key}: {value}")`;
+            return `# Python data structure\ndata = [\n${pythonListItems.join(',\n')}\n]`;
         }
-
 
         function downloadFile() {
             if (!outputData) {
@@ -736,8 +743,17 @@
                 return;
             }
 
-            const extension = currentFormat === 'json' ? 'json' : 'php';
-            const mimeType = currentFormat === 'json' ? 'application/json' : 'application/x-httpd-php';
+            let extension, mimeType;
+            if (currentFormat === 'json') {
+                extension = 'json';
+                mimeType = 'application/json';
+            } else if (currentFormat === 'php') {
+                extension = 'php';
+                mimeType = 'application/x-httpd-php';
+            } else { // Python
+                extension = 'py';
+                mimeType = 'text/x-python';
+            }
 
             const blob = new Blob([outputData], { type: mimeType });
             const url = URL.createObjectURL(blob);
@@ -750,32 +766,27 @@
             URL.revokeObjectURL(url);
         }
 
-        function copyToClipboard() {
+        function copyToClipboard(event) {
             if (!outputData) {
                 alert('No data to copy. Please convert your data first.');
                 return;
             }
-
             navigator.clipboard.writeText(outputData).then(() => {
-                // Visual feedback
                 const button = event.target;
                 const originalText = button.textContent;
                 button.textContent = '✅ Copied!';
                 button.style.background = '#28a745';
-
                 setTimeout(() => {
                     button.textContent = originalText;
                     button.style.background = '';
                 }, 2000);
             }).catch(err => {
-                // Fallback for older browsers
                 const textArea = document.createElement('textarea');
                 textArea.value = outputData;
                 document.body.appendChild(textArea);
                 textArea.select();
                 document.execCommand('copy');
                 document.body.removeChild(textArea);
-
                 alert('Data copied to clipboard!');
             });
         }
